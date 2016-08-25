@@ -3,6 +3,7 @@
 use strict;
 use warnings;
 
+use Term::ANSIColor;
 use Data::Dumper;
 use Getopt::Long qw/ :config no_ignore_case bundling /;
 
@@ -21,7 +22,26 @@ GetOptions(
 
 &usage() if ($help);
 
-my $ip_rgx = qr/(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}?(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)/;
+my $ip_rgx = qr/(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)/;
+my $mac_rgx = qr/(?:[0-9a-fA-F]{2}(:|-)){5}[0-9a-fA-F]{2}/;
+my $mac_nc_rgx = qr/(?:[0-9a-fA-F]{2}(?:\:|-)){5}(?:\:|-)[0-9a-fA-F]{2}/;
+my $content = "";
+
+open IN, "<$input" or die colored("There was a peoblem opening the input file ($input): $! \n", "bold red");
+while (<IN>) { $content .= $_; }
+close IN or die colored("There was a problem closing the input file ($input): $! \n", "bold red");
+
+if ((defined($ip)) and ($ip =~ /^all$/i)) {
+	$content =~ s/$ip_rgx/x.x.x.x/xsg;
+}
+
+if ((defined($mac)) and ($mac =~ /^all$/i)) {
+	$content =~ s/$mac_rgx/xx$1xx$1xx$1xx$1xx$1xx/xsg;
+}
+
+open OUT, ">$output" or die colored("There was a problem opening the output file ($output) for writing: $! \n", "bold red");
+print OUT $content;
+close OUT or die colored("There was a problem closing the output file ($output) after writing: $! \n", "bold red");
 
 ###############################################################################
 # Subs
