@@ -7,7 +7,7 @@ use Term::ANSIColor;
 use Data::Dumper;
 use Getopt::Long qw/ :config no_ignore_case bundling /;
 
-my ($help, $verbose, $cleanip, $cleanmac, $cleanmail, $cleanhex, $input, $output, $obfus);
+my ($help, $verbose, $cleanip, $cleanmac, $cleanmail, $cleanhex, $input, $output, $obfus, $vendormac);
 $verbose = 0;
 GetOptions(
 	'h|help'		=>	\$help,
@@ -19,6 +19,7 @@ GetOptions(
 	'email:s'		=>	\$cleanmail,
 	'x|hex'			=>	\$cleanhex,
 	'obfusips'		=>	\$obfus,
+	'vendor-mac'	=>	\$vendormac,
 );
 
 &usage() if ($help);
@@ -32,27 +33,44 @@ print colored("\$mac:\t $cleanmac \n", "bold yellow")		if ((defined($cleanmac)) 
 print colored("\$email:\t $cleanmail \n", "bold yellow")	if ((defined($cleanmail)) and ($verbose));
 
 my $ip_rgx = qr/(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)/;
-my $mac_rgx = qr/(?:[0-9a-fA-F]{2}(:|-)){5}[0-9a-fA-F]{2}/;
-my $mac_nc_rgx = qr/(?:[0-9a-fA-F]{2}(?:\:|-)){5}(?:\:|-)[0-9a-fA-F]{2}/;
+my $xBp = qr/[0-9a-fA-F]{2}/;			### heX Byte Pair (xBp)
+### Precompiled regular expression are compiled with the m//x flag
+### So "eXtended features" are implied
+my $mac_rgx = qr/(?:$xBp(:|-)){5}$xBp/;					### captures the delim in $1
+my $vendormac_rgx = qr/((?:$xBp(:|-)){2}$xBp)(?::|-)(?:$xBp(?::|-)){2}$xBp/;	### $1 = delim; $2 = vendor_id_bytes;
+my $mac_nc_rgx = qr/(?:$xBp(?:\:|-)){5}(?:\:|-)$xBp/;
 my $TLDs = qr/(?:com|net|org|edu|us|co.uk|biz|info)/;
 my $email_rgx = qr/[0-9a-zA-Z_.-]+\@(?:[0-9a-zA-Z-]+\.){1,3}$TLDs/;
 my $content = "";
-my (%found_ips, %obfusips);
+my (%found_ips, %obfusips, %found_macs, %found_mail);
+
+
+print "mac_nc_rgx		==>	$mac_nc_rgx \n";
+print "vendormac_rgx 		==>	$vendormac_rgx \n";
 
 open IN, "<$input" or die colored("There was a peoblem opening the input file ($input): $! \n", "bold red");
 while (my $line = <IN>) { 
-	while ($line =~ /($ip_rgx)/g) {
+	while ($line =~ /($ip_rgx)/xg) {
 		my $ip = $1;
 		$found_ips{$ip}++;
 		if ($obfus) { &obfusip($ip); }
+	}
+	while ($line =~ /($mac_nc_rgx)/xg) {
+		my $mac =~ $1;
+		$found_macs{$mac}++;
+	}
+	while ($line =~ /($email_rgx)/xg) {
+		my $mail = $1;
+		$found_mail{$mail}++;
 	}
 	$content .= $line; 
 }
 close IN or die colored("There was a problem closing the input file ($input): $! \n", "bold red");
 
 print "Found ".scalar(keys(%found_ips))." total IPs. \n";
-print "Obfuscated ".scalar(keys(%obfusips))." IPs. \n";
+print "Obfuscated ".scalar(keys(%obfusips))." IPs. \n" if ($obfus);;
 #print Dumper(\%obfusips);
+print "Found ".scalar(keys(%found_macs))." total MACs. \n";
 
 if (defined($cleanip)) {
 	if ($cleanip =~ /^all$/i) {
@@ -67,8 +85,15 @@ if (defined($cleanip)) {
 }
 
 if (defined($cleanmac)) {
-	if ($cleanmac =~ /^all$/i) { $content =~ s/$mac_rgx/xx$1xx$1xx$1xx$1xx$1xx/xsg; } 
-	elsif ($cleanmac =~ /$mac_rgx/x) { $content =~ s/$cleanmac/xx$1xx$1xx$1xx$1xx$1xx/xsg; }
+	if ($cleanmac =~ /^all$/i) { 
+		foreach my $mac ( keys %found_macs ) {
+			if ($vendormac) { $content =~ s/$vendormac_rgx/$2$1de$1ad$1bf/xsg; }
+			else { $content =~ s/$mac/de$1ad$1be$1ef$1de$1ad/xsg; }
+		}
+	} elsif ($cleanmac =~ /$mac_rgx/x) { 
+		if ($vendormac) { $content =~ s/$vendormac_rgx/$2$1de$1ad$1bf/xsg; }
+		else { $content =~ s/$cleanmac/de$1ad$1be$1ef$1de$1ad/xsg; }
+	}
 }
 
 if (defined($cleanmail)) {
