@@ -126,6 +126,10 @@ Where:
 --mac <mac|all>				Specifies a specific MAC address to sanitize, or all.
 --email <email|all>			Specifies a specific email address to sanitize, or all.
 -x|--hex				If specified, will attempt to look for hexadecimal IP addresses.  Otherwise ignored.
+--smartip				If specified, will randomize the 2nd and 3rd octet of the resultant IP address within
+						the 10.0.0.0/8 RFC1918 space.  Only applies to the --ip obfuscation option.
+--vendormac				If specified, will leave the first 6 bytes of the MAC address to be obfuscated.  This
+						can later be looked up to associate the MAC with its vendor.
 
 END
 
