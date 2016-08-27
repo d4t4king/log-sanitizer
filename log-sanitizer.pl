@@ -7,7 +7,7 @@ use Term::ANSIColor;
 use Data::Dumper;
 use Getopt::Long qw/ :config no_ignore_case bundling /;
 
-my ($help, $verbose, $cleanip, $cleanmac, $cleanmail, $cleanhex, $input, $output, $obfus, $vendormac);
+my ($help, $verbose, $cleanip, $cleanmac, $cleanmail, $cleanhex, $input, $output, $smartip, $vendormac);
 $verbose = 0;
 GetOptions(
 	'h|help'		=>	\$help,
@@ -18,8 +18,8 @@ GetOptions(
 	'mac:s'			=>	\$cleanmac,
 	'email:s'		=>	\$cleanmail,
 	'x|hex'			=>	\$cleanhex,
-	'obfusips'		=>	\$obfus,
-	'vendor-mac'	=>	\$vendormac,
+	'smartip'		=>	\$smartip,
+	'vendormac'		=>	\$vendormac,
 );
 
 &usage() if ($help);
@@ -27,6 +27,9 @@ GetOptions(
 $cleanip		= 'all' if ((defined($cleanip)) and ($cleanip eq ''));
 $cleanmac 	= 'all' if ((defined($cleanmac)) and ($cleanmac eq ''));
 $cleanmail	= 'all' if ((defined($cleanmail)) and ($cleanmail eq ''));
+
+die colored("The --smartip option only applies to IPv4 obfuscation. \n", "bold red") if (($smartip) and (!$cleanip));
+die colored("The --vendormac option only applies to MAC addresses.  You must specify the --mac option. \n", "bold red") if (($vendormac) and (!$cleanmac));
 
 print colored("\$cleanip:\t $cleanip \n", "bold yellow")			if ((defined($cleanip)) and ($verbose));
 print colored("\$mac:\t $cleanmac \n", "bold yellow")		if ((defined($cleanmac)) and ($verbose));
@@ -53,7 +56,7 @@ while (my $line = <IN>) {
 	while ($line =~ /($ip_rgx)/xg) {
 		my $ip = $1;
 		$found_ips{$ip}++;
-		if ($obfus) { &obfusip($ip); }
+		if ($smartip) { &obfusip($ip); }
 	}
 	while ($line =~ /($mac_nc_rgx)/xg) {
 		my $mac =~ $1;
@@ -68,18 +71,18 @@ while (my $line = <IN>) {
 close IN or die colored("There was a problem closing the input file ($input): $! \n", "bold red");
 
 print "Found ".scalar(keys(%found_ips))." total IPs. \n";
-print "Obfuscated ".scalar(keys(%obfusips))." IPs. \n" if ($obfus);;
+print "Obfuscated ".scalar(keys(%obfusips))." IPs. \n" if ($smartip);;
 #print Dumper(\%obfusips);
 print "Found ".scalar(keys(%found_macs))." total MACs. \n";
 
 if (defined($cleanip)) {
 	if ($cleanip =~ /^all$/i) {
 		foreach my $ip ( keys %found_ips ) {
-			if ($obfus) { $content =~ s/$ip/$obfusips{$ip}/xsg; } 
+			if ($smartip) { $content =~ s/$ip/$obfusips{$ip}/xsg; } 
 			else { $content =~ s/$ip/d.e.a.d/xsg; }
 		}
 	} else {
-		if ($obfus) { $content =~ s/$cleanip/$obfusips{$cleanip}/xsg; }
+		if ($smartip) { $content =~ s/$cleanip/$obfusips{$cleanip}/xsg; }
 		else { $content =~ s/$cleanip/d.e.a.d/xsg; }
 	}
 }
@@ -97,8 +100,8 @@ if (defined($cleanmac)) {
 }
 
 if (defined($cleanmail)) {
-	if ($cleanmail =~ /^all$/i) { $content =~ s/$email_rgx/xxx\@xxx.xxx/xsg; }
-	elsif ($cleanmail =~ /$email_rgx/x) { $content =~ s/$cleanmail/xxx\@xxx.xxx/xsg; }
+	if ($cleanmail =~ /^all$/i) { $content =~ s/$email_rgx/deadbeef\@example.com/xsg; }
+	elsif ($cleanmail =~ /$email_rgx/x) { $content =~ s/$cleanmail/deadbeef\@example.com/xsg; }
 }
 
 open OUT, ">$output" or die colored("There was a problem opening the output file ($output) for writing: $! \n", "bold red");
