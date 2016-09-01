@@ -22,14 +22,18 @@ GetOptions(
 	'vendormac'		=>	\$vendormac,
 );
 
+my %to_bool = ( 0 => 'false', 1 => 'true' );
+my %from_bool = ( 'false' => 0, 'true' => 1 );
+
 &usage() if ($help);
 
 $cleanip		= 'all' if ((defined($cleanip)) and ($cleanip eq ''));
-$cleanmac 	= 'all' if ((defined($cleanmac)) and ($cleanmac eq ''));
-$cleanmail	= 'all' if ((defined($cleanmail)) and ($cleanmail eq ''));
+$cleanmac 		= 'all' if ((defined($cleanmac)) and ($cleanmac eq ''));
+$cleanmail		= 'all' if ((defined($cleanmail)) and ($cleanmail eq ''));
 
 die colored("The --smartip option only applies to IPv4 obfuscation. \n", "bold red") if (($smartip) and (!$cleanip));
 die colored("The --vendormac option only applies to MAC addresses.  You must specify the --mac option. \n", "bold red") if (($vendormac) and (!$cleanmac));
+&usage(0) and die colored("No action specified. ", "bold red") if ((!$cleanip) and (!$cleanmac) and (!$cleanmail));
 
 print colored("\$cleanip:\t $cleanip \n", "bold yellow")			if ((defined($cleanip)) and ($verbose));
 print colored("\$mac:\t $cleanmac \n", "bold yellow")		if ((defined($cleanmac)) and ($verbose));
@@ -48,32 +52,38 @@ my $content = "";
 my (%found_ips, %obfusips, %found_macs, %found_mail);
 
 
-print "mac_nc_rgx		==>	$mac_nc_rgx \n";
-print "vendormac_rgx 		==>	$vendormac_rgx \n";
+#print "mac_nc_rgx		==>	$mac_nc_rgx \n";
+#print "vendormac_rgx 		==>	$vendormac_rgx \n";
 
 open IN, "<$input" or die colored("There was a peoblem opening the input file ($input): $! \n", "bold red");
 while (my $line = <IN>) { 
-	while ($line =~ /($ip_rgx)/xg) {
-		my $ip = $1;
-		$found_ips{$ip}++;
-		if ($smartip) { &obfusip($ip); }
+	if ($cleanip) {
+		while ($line =~ /($ip_rgx)/xg) {
+			my $ip = $1;
+			$found_ips{$ip}++;
+			if ($smartip) { &obfusip($ip); }
+		}
 	}
-	while ($line =~ /($mac_nc_rgx)/xg) {
-		my $mac =~ $1;
-		$found_macs{$mac}++;
+	if ($cleanmac) {
+		while ($line =~ /($mac_nc_rgx)/xg) {
+			my $mac =~ $1;
+			$found_macs{$mac}++;
+		}
 	}
-	while ($line =~ /($email_rgx)/xg) {
-		my $mail = $1;
-		$found_mail{$mail}++;
+	if ($cleanmail) {
+		while ($line =~ /($email_rgx)/xg) {
+			my $mail = $1;
+			$found_mail{$mail}++;
+		}
 	}
 	$content .= $line; 
 }
 close IN or die colored("There was a problem closing the input file ($input): $! \n", "bold red");
 
-print "Found ".scalar(keys(%found_ips))." total IPs. \n";
+print "Found ".scalar(keys(%found_ips))." total IPs. \n" if ($cleanip);
 print "Obfuscated ".scalar(keys(%obfusips))." IPs. \n" if ($smartip);;
 #print Dumper(\%obfusips);
-print "Found ".scalar(keys(%found_macs))." total MACs. \n";
+print "Found ".scalar(keys(%found_macs))." total MACs. \n" if ($cleanmac);
 
 if (defined($cleanip)) {
 	if ($cleanip =~ /^all$/i) {
@@ -112,6 +122,8 @@ close OUT or die colored("There was a problem closing the output file ($output) 
 # Subs
 ###############################################################################
 sub usage {
+	my $to_exit = shift(@_);
+
 	print <<END;
 
 $0 [-hvx] [--ip] [--mac] [--email] [-i|--input] [-o|--output]
@@ -133,7 +145,8 @@ Where:
 
 END
 
-	exit 0;
+	if ($to_exit) { exit 0; }
+	else { return 1; }
 }
 
 sub obfusip {
